@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LFI Scanner - Extended with Full Regex Coverage
+# LFI Scanner - Enhanced with Reduced False Positives
 
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -44,77 +44,74 @@ USER_AGENTS=(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 )
 
-# EXTENDED REGEX PATTERNS FOR ALL PAYLOADS
+# REFINED REGEX PATTERNS FOR REDUCED FALSE POSITIVES
 REGEX_PATTERNS=(
     # Linux / Unix files
-    "^Linux |^Ubuntu|^Debian|^CentOS|^Fedora"                             # /etc/issue, /etc/motd
-    "root:[^:\n]*:[01]:0:|daemon:[^:\n]*:[01]:1:"                         # /etc/passwd
-    "root:[^\n:]*:[x*]?:[0-9]+:"                                          # /etc/shadow
-    "^[a-zA-Z0-9\-\_]+:[^:]+:[0-9]+:[0-9]+:"                              # /etc/passwd lines
-    "^[a-zA-Z0-9\-\_]+:[^:]*:[0-9]+:"                                     # /etc/group lines
-    "127\.0\.0\.1|localhost|::1"                                          # /etc/hosts, /proc/net/arp
-    "my\.cnf|user\s*=\s*|password\s*=|host\s*="                           # /etc/mysql/my.cnf and variants
-    "PATH=.*|USER=.*|HOME=.*|SHELL=.*"                                    # /proc/self/environ
-    "Linux version |gcc version |Ubuntu SMP|PREEMPT|#.* SMP"              # /proc/version
-    "cmdline=.*"                                                          # /proc/cmdline
-    "SchedDebug Version:|sysctl_sched_latency|nr_running"                 # /proc/sched_debug
-    "root\s+on\s+/|/dev/|type\s+proc|ext4|nfs"                            # /proc/mounts
-    "Iface\s+|HWaddr|Device|Link encap|Flags"                             # /proc/net/arp, /proc/net/route
-    "sl\s+local_address|proto\s+recv|dgram|TCP|UDP"                       # /proc/net/tcp, /proc/net/udp
-    "<\?php|function |class |echo |require"                               # /proc/self/cwd/index.php
-    "def |import |if __name__ == [\"']__main__[\"']|print"                # /proc/self/cwd/main.py
-    "session.save_path|memory_limit|post_max_size"                        # php.ini (multiple variants)
-    "bash_history|cd |ls |exit|ssh|sudo|passwd"                           # /root/.bash_history
-    "-----BEGIN RSA PRIVATE KEY-----|-----END RSA PRIVATE KEY-----"       # /root/.ssh/id_rsa
-    "apiVersion:|kind:|kubernetes.io|namespace:"                          # /var/run/secrets/kubernetes.io/serviceaccount
-    "mlocate.db|/var/lib/mlocate|mlocate:|filename:"                      # /var/lib/mlocate/mlocate.db
-    "GET\\s+/|POST\\s+/|HTTP/|Mozilla|Referer:|User-Agent:"               # access.log (nginx, apache, httpd)
-    "\\[error\\]|\\[warn\\]|\\[notice\\]|client |server |script |mod_|PHP Fatal" # error.log
-    "vsftpd|FTP session|banner|fail|connect"                              # /var/log/vsftpd.log
-    "sshd|Accepted|Failed|session opened|session closed"                  # /var/log/sshd.log
-    "mail|postfix|sendmail|imap|smtp|to=<|from=<"                         # /var/log/mail
+    "^Ubuntu [0-9]+\\.[0-9]+ LTS|^Debian GNU/Linux [0-9]+"                # /etc/issue
+    "^root:[^:]+:[0-9]+:[0-9]+:.*$"                                       # /etc/passwd
+    "^root:[^:]+:[0-9]+:.*$"                                              # /etc/shadow
+    "^[a-zA-Z0-9_-]+:[^:]+:[0-9]+:[0-9]+:.*$"                             # /etc/passwd lines
+    "^[a-zA-Z0-9_-]+:[^:]*:[0-9]+:.*$"                                    # /etc/group lines
+    "^127\.0\.0\.1\s+localhost|^::1\s+localhost"                           # /etc/hosts
+    "^\[mysqld\]|user\s*=\s*[a-zA-Z0-9_-]+|password\s*="                  # /etc/mysql/my.cnf
+    "^PATH=.*|^USER=.*|^HOME=.*|^SHELL=.*"                                # /proc/self/environ
+    "^Linux version [0-9]+\\.[0-9]+\\.[0-9]+"                             # /proc/version
+    "^cmdline=.*"                                                         # /proc/cmdline
+    "^SchedDebug Version:.*|^sysctl_sched_latency"                        # /proc/sched_debug
+    "^root\s+/dev/.*\s+ext4|^/dev/.*\s+proc"                              # /proc/mounts
+    "^Iface\s+.*HWaddr|^Link encap:"                                      # /proc/net/arp
+    "^sl\s+local_address|^proto\s+recv"                                   # /proc/net/tcp, /proc/net/udp
+    "^<?php\s+.*(function|class|echo|require)"                           # /proc/self/cwd/index.php
+    "^def\s+.*|^import\s+.*|^if __name__ == [\"']__main__[\"']"           # /proc/self/cwd/main.py
+    "^session\.save_path|^memory_limit|^post_max_size"                     # php.ini
+    "^cd\s+.*|^ls\s+.*|^sudo\s+.*|^passwd\s+.*"                          # /root/.bash_history
+    "^-----BEGIN RSA PRIVATE KEY-----"                                    # /root/.ssh/id_rsa
+    "^apiVersion:\s+.*|^kind:\s+.*|^namespace:"                           # /var/run/secrets/kubernetes.io/serviceaccount
+    "^mlocate\.db|^filename:.*"                                           # /var/lib/mlocate/mlocate.db
+    "^GET\s+/.*HTTP/|^POST\s+/.*HTTP/"                                    # access.log
+    "^\[error\]|^PHP Fatal error|^client\s+\["                            # error.log
+    "^vsftpd.*(connect|login|fail)"                                       # /var/log/vsftpd.log
+    "^sshd.*(Accepted|Failed|session opened)"                             # /var/log/sshd.log
+    "^mail.*(postfix|sendmail|imap|smtp)"                                 # /var/log/mail
 
     # Windows files
-    "\\[boot loader\\]|\\[operating systems\\]|multi\\(0\\)disk\\(0\\)rdisk\\(0\\)" # boot.ini
-    "\\[fonts\\]|\\[drivers\\]|\\[extensions\\]|\\[mci extensions\\]"               # win.ini
-    "Microsoft Windows|SystemRoot|RegisteredOwner|ProductID"                        # system.ini, license.rtf, eula.txt
-    "Desktop\\.ini|ShellClassInfo"                                                  # desktop.ini
-    "ntuser\\.dat|REGEDIT4|Windows Registry Editor"                                 # ntuser.dat, ntuser.ini
-    "INI_FILE|\\[mail\\]|\\[php\\]|\\[XDebug\\]"                                    # php.ini
-    "DocumentRoot|ServerRoot|Listen|LoadModule|DirectoryIndex"                      # httpd.conf (apache/xampp)
-    "<configuration>|<appSettings>|<system.web>|<connectionStrings>"                 # web.config, packages.config
-    "global\\.asa|sub main|application|session"                                     # global.asa, global.asax
-    "<%@ Page|<asp:|runat=\"server\"|ScriptManager|AutoEventWireup"                 # index.asp, .asax, .cs files
-    "MySQL|datadir|innodb|bind-address|user|password"                               # my.cnf, my.ini
-    "ErrorLog|Notice|Warning|PHP Error|\\[error\\]|\\[warn\\]|client |server"       # error.log, access.log
-    "Tomcat|Apache Tomcat|Server version|Servlet|Catalina|localhost"                # tomcat files, license, release-notes
-    "FileZilla Server|<FileZillaServer>"                                            # filezilla server.xml
-    "MercuryMail|IMAP|SMTP|POP3|localhost"                                          # mercury.ini, logs
-    "webalizer|Hits|Sites|Bandwidth|Top Referrers"                                  # webalizer.conf, webalizer logs
-    "sitelist\\.xml|McAfee|SiteList"                                                # sitelist.xml
-    "sysprep|unattend|xml version|setupinfo"                                        # sysprep.inf, sysprep.xml, unattend.txt
-    "wpsettings\\.dat|System Volume Information"                                    # wpsettings.dat
-    "metabase\\.xml|IIS|<IIs|W3SVC|AppPools"                                        # metabase.xml, IIS config
-    "hosts|127\\.|::1|localhost"                                                    # hosts (windows and unix)
-    "logfiles|httperr|httpd|nginx"                                                  # logfiles (IIS, apache, nginx, xampp)
-    "setupinfo|\\[Unattended\\]|\\[Sysprep\\]|\\[GuiUnattended\\]|\\[UserData\\]"   # setupinfo, unattend.xml
-    "AppData|Google Chrome|Bookmarks|Cookies|History"                               # Chrome user data files
-    "psreadline|ConsoleHost|PowerShell|history"                                     # consolehost_history.txt
-    "AWS|\\[default\\]|aws_access_key_id|aws_secret_access_key"                     # .aws/config, .aws/credentials
-    "elasticbeanstalk|\\[global\\]|application_name|region"                         # .elasticbeanstalk/config
-    "config\\.inc|phpinfo|phpMyAdmin"                                               # phpMyAdmin config, phpinfo.php
-    "sendmail|smtp|maildomain|auth_user|auth_pass"                                  # sendmail.ini, sendmail.log
+    "^\[boot loader\]"                                                    # boot.ini
+    "^\[fonts\]|^\[drivers\]"                                             # win.ini
+    "^SystemRoot=|^RegisteredOwner=|^ProductID="                          # system.ini
+    "^\[ShellClassInfo\]"                                                 # desktop.ini
+    "^REGEDIT4|^Windows Registry Editor"                                  # ntuser.dat, ntuser.ini
+    "^\[PHP\]|^max_execution_time|^upload_max_filesize"                   # php.ini
+    "^DocumentRoot\s+.*|^ServerRoot\s+.*|^Listen\s+[0-9]+"                # httpd.conf
+    "^<configuration>|^<appSettings>|^<connectionStrings>"                # web.config
+    "^global\.asa|^sub main|^application\("                               # global.asa
+    "^<%@\s+Page|^<asp:|^runat=\"server\""                               # index.asp, .asax
+    "^\[mysqld\]|datadir=|^bind-address="                                 # my.ini
+    "^Tomcat.*Server version:|^Servlet.*|^Catalina"                       # tomcat files
+    "^<FileZillaServer>"                                                  # filezilla server.xml
+    "^MercuryMail|^IMAP.*|^SMTP.*"                                        # mercury.ini
+    "^webalizer.*(Hits|Sites|Bandwidth)"                                  # webalizer.conf
+    "^<SiteList>|^McAfee"                                                 # sitelist.xml
+    "^<unattend>|^<sysprep>"                                              # sysprep.xml
+    "^wpsettings\.dat|^System Volume Information"                         # wpsettings.dat
+    "^<IIsWebServer>|^W3SVC|^AppPools"                                    # metabase.xml
+    "^127\.0\.0\.1\s+localhost|^::1\s+localhost"                          # hosts
+    "^\[Unattended\]|^\[GuiUnattended\]"                                  # unattend.xml
+    "^AppData.*(Bookmarks|Cookies|History)"                               # Chrome user data
+    "^ConsoleHost_history|^PSReadLine"                                    # consolehost_history.txt
+    "^\[default\].*aws_access_key_id|^aws_secret_access_key"              # .aws/credentials
+    "^\[global\].*application_name|^region="                              # .elasticbeanstalk/config
+    "^\$db\s*=|^phpMyAdmin.*config\.inc"                                  # phpMyAdmin config
+    "^sendmail.*(smtp|auth_user|auth_pass)"                               # sendmail.ini
 
-    # Java / WebApp files (META-INF, WEB-INF, etc.)
-    "xml version=\"1.0\"|<beans|<application|<context-param>|<servlet>|<ejb-jar|<persistence|<weblogic|<jboss|<hibernate|<web-app|log4j|spring|faces-config|velocity|struts|quartz"
-    "Manifest-Version:|Main-Class:|Class-Path:"                                     # META-INF/MANIFEST.MF
-    "JNLP-INF|APPLICATION.JNLP|<jnlp|<application-desc|<security>"                  # JNLP-INF/APPLICATION.JNLP
-    "openwebbeans|ironjacamar|jboss-app|jboss-ejb|jboss-web|jboss-client"           # JBoss XMLs
-    "liferay|portlet|web-app|web.xml|context.xml|glassfish"                         # Liferay, Glassfish, Java EE
-    "config\\.properties|db\\.properties|countries\\.properties|messages\\.properties" # Java property/config files
-    "logback\\.xml|log4j\\.xml|log4j\\.properties|logging\\.properties"             # Java logging configs
-    "faces-config\\.xml|struts-config\\.xml|tiles-defs\\.xml|validation\\.xml"      # Java framework XMLs
-    "servlet|<servlet-mapping>|<filter>|dispatcher-servlet"                         # Spring, Java web.xml
+    # Java / WebApp files
+    "^<web-app|^<servlet>|^<context-param>"                               # web.xml
+    "^Manifest-Version:|^Main-Class:|^Class-Path:"                        # MANIFEST.MF
+    "^<jnlp|^<application-desc"                                           # APPLICATION.JNLP
+    "^<jboss-web|^<jboss-app|^openwebbeans"                               # JBoss XMLs
+    "^<liferay-web|^<portlet>"                                            # Liferay XMLs
+    "^db\.properties|^config\.properties|^messages\.properties"           # Java properties
+    "^<log4j:configuration|^logback"                                      # log4j.xml, logback.xml
+    "^<faces-config|^<struts-config|^<tiles-defs"                         # Java framework XMLs
 )
 
 GREP_PATTERN="$(IFS='|'; echo "${REGEX_PATTERNS[*]}")"
@@ -158,7 +155,8 @@ scan_one() {
         return
     fi
 
-    if echo "$resp" | grep -aEzo "$GREP_PATTERN" >/dev/null; then
+    # Check only the first 10 lines to reduce false positives
+    if echo "$resp" | head -n 10 | grep -aqE "$GREP_PATTERN"; then
         echo -e "${GREEN}[LFI FOUND]${NC} ${CYAN}${attack_url}${NC} ${YELLOW}(payload: $payload)${NC}"
         echo "$attack_url | $payload" >> "$OUTPUT_FILE"
     fi
